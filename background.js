@@ -54,3 +54,37 @@ async function sendTelegramNotification(subject, body, userEmail) { // userEmail
     }
 }
 
+
+
+// Optional: Initial check when the service worker starts up
+chrome.runtime.onInstalled.addListener(() => {
+    console.log('VFS Appointment Notifier installed.');
+    chrome.storage.local.get('isEnabled', function(result) {
+        if (result.isEnabled) {
+            // Ensure the alarm is set if the extension was already enabled
+            chrome.alarms.create('vfsCheckAlarm', {
+                delayInMinutes: 0.1, // Start almost immediately on install/update if enabled
+                periodInMinutes: 1
+            });
+        }
+    });
+});
+
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'automation_complete') {
+        console.log('Background Script: Received automation result:', message.result);
+        // Close the tab that sent the message
+        if (sender.tab && sender.tab.id) {
+            chrome.tabs.remove(sender.tab.id, () => {
+                if (chrome.runtime.lastError) {
+                    console.error('Background Script: Error closing tab:', chrome.runtime.lastError.message);
+                } else {
+                    console.log('Background Script: Tab closed successfully.');
+                }
+            });
+        } else {
+            console.error('Background Script: No valid tab ID to close.');
+        }
+    }
+});
