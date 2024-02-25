@@ -26,15 +26,18 @@ vfs_telegram_notifier/
    - Place `send_telegram_message.php` on your web server.
    - Edit the file to include your Telegram Bot Token and Chat ID.
 
-3. **Load the Extension in Your Browser:**
-   - Open your browser's extensions page (e.g., `chrome://extensions/` in Chrome).
-   - Enable "Developer mode".
-   - Click "Load unpacked" and select the `vfs_telegram_notifier` folder.
+3. **Add the Extension to Chrome:**
+   - Open Chrome and go to `chrome://extensions/`.
+   - Enable "Developer mode" (top right).
+   - Click "Load unpacked".
+   - Select the outer `vfs_telegram_notifier` folder and click "Select".
+   - The extension will now be loaded.
 
 4. **Configure and Use:**
-   - Click the extension icon.
-   - Enter the required details in the popup (if applicable).
-   - The extension will send notifications to your Telegram via the PHP backend.
+   - Click the extension icon in Chrome.
+   - Enter your login URL, email, and password.
+   - Toggle the "Activate" button and save settings.
+   - The extension will start automated checking and send notifications to your Telegram.
 
 ## Icons
 
@@ -43,4 +46,8 @@ Icons are provided in 16x16, 48x48, and 128x128 PNG formats in the `icons/` dire
 ---
 
 **Note:**  
-Make sure your PHP server is accessible from your browser and is configured to allow requests from
+Make sure your PHP server is accessible from your browser and is configured to allow requests from the extension.
+
+---
+
+**Designed for Ethiopians for Italy appointment**
