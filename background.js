@@ -55,6 +55,129 @@ async function sendTelegramNotification(subject, body, userEmail) { // userEmail
 }
 
 
+// Main function to start the VFS appointment check process
+async function checkVFSAppointments() {
+    console.log('VFS Appointment Checker: Initiating check...');
+    showNotification('VFS Checker', 'Starting appointment check...');
+
+    try {
+        const result = await chrome.storage.local.get(['vfsUrl', 'userEmail', 'userPassword', 'isEnabled']);
+        const { vfsUrl, userEmail, userPassword, isEnabled } = result;
+
+        if (!isEnabled) {
+            console.log('VFS Appointment Checker: Disabled by user. Skipping check.');
+            return;
+        }
+
+        if (!vfsUrl || !userEmail || !userPassword) {
+            console.error('VFS Appointment Checker: Missing configuration. Please set URL, email, and password in popup.');
+            showNotification('VFS Checker Error', 'Missing configuration. Please set URL, email, and password.');
+            return;
+        }
+
+        console.log(`VFS Appointment Checker: Attempting to navigate to ${vfsUrl}`);
+
+        // Create a new tab or update an existing one to perform the login and check
+        // This method creates a new tab for interaction. For security and to avoid
+        // interfering with the user's current browsing, it's often better to open
+        // a dedicated, possibly hidden tab.
+        const tab = await chrome.tabs.create({ url: vfsUrl, active: false }); // Open in background tab
+
+        // Wait for the tab to load before injecting content script
+        await new Promise(resolve => {
+            chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
+                if (tabId === tab.id && changeInfo.status === 'complete') {
+                    chrome.tabs.onUpdated.removeListener(listener);
+                    resolve();
+                }
+            });
+        });
+
+        console.log(`VFS Appointment Checker: Tab loaded, injecting content script into tab ID: ${tab.id}`);
+
+        // Inject the content script into the VFS login page
+        const response = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['content_script.js']
+        });
+
+        // The content script will return a result (e.g., success/failure of login/check)
+        // We can then process this result.
+        // Assuming the content script returns an array of results,
+        // and we are interested in the first one.
+        if (response && response[0] && response[0].result) {
+            const scriptResult = response[0].result;
+            console.log('VFS Appointment Checker: Content script reported:', scriptResult);
+
+            if (scriptResult.status === 'login_success') {
+                showNotification('VFS Checker', 'Successfully logged into VFS page.');
+                sendTelegramNotification('VFS Checker - Successful Login', 'Your VFS Appointment Checker successfully logged into the VFS page.', userEmail);
+            } else if (scriptResult.status === 'appointment_found') {
+                showNotification('VFS Appointment FOUND!', 'A new appointment slot has been found! Check the VFS page immediately.');
+                sendTelegramNotification('VFS Appointment FOUND!', `A new appointment slot has been found! Check the VFS page immediately: ${vfsUrl}`, userEmail);
+                // Here, you could add logic to attempt booking if desired,
+                // but it's highly complex and site-specific.
+                // For simplicity, we just notify.
+            } else if (scriptResult.status === 'appointment_not_found') {
+                showNotification('VFS Checker', 'No appointment slots found this minute.');
+                sendTelegramNotification('VFS Checker - No Appointment Found', 'No appointment slots found this minute.', userEmail);
+            } else if (scriptResult.status === 'error') {
+                showNotification('VFS Checker Error', `An error occurred: ${scriptResult.message}`);
+                console.error('VFS Appointment Checker Error:', scriptResult.message);
+                sendTelegramNotification('VFS Checker - Error', `An error occurred during VFS check: ${scriptResult.message}`, userEmail);
+            }
+        } else {
+            console.error('VFS Appointment Checker: Content script did not return expected result.');
+            showNotification('VFS Checker Error', 'Content script communication failed.');
+            sendTelegramNotification('VFS Checker - Communication Error', 'Content script communication failed with the VFS Checker extension.', userEmail);
+        }
+
+        // Close the tab after processing to clean up
+        // await chrome.tabs.remove(tab.id);
+
+    } catch (error) {
+        console.error('VFS Appointment Checker: Unhandled error during check:', error);
+        showNotification('VFS Checker Critical Error', `An unexpected error occurred: ${error.message}`);
+        sendTelegramNotification('VFS Checker - Critical Error', `An unexpected critical error occurred: ${error.message}`, userEmail);
+    }
+}
+
+// Set up the alarm to trigger the check every minute
+chrome.alarms.create('vfsCheckAlarm', {
+    delayInMinutes: 1, // Start after 1 minute
+    periodInMinutes: 1 // Repeat every 1 minute
+});
+
+// Listener for the alarm
+chrome.alarms.onAlarm.addListener(function(alarm) {
+    if (alarm.name === 'vfsCheckAlarm') {
+        chrome.storage.local.get('isEnabled', function(result) {
+            if (result.isEnabled) {
+                checkVFSAppointments();
+            } else {
+                console.log('VFS Appointment Checker: Alarm triggered, but checker is disabled.');
+            }
+        });
+    }
+});
+
+// Listener for messages from the popup script
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+    if (request.action === 'updateAlarm') {
+        if (request.isEnabled) {
+            // If enabled, ensure the alarm is active
+            chrome.alarms.create('vfsCheckAlarm', {
+                delayInMinutes: 0.1, // Start almost immediately when re-enabled
+                periodInMinutes: 1
+            });
+            console.log('VFS Appointment Checker: Alarm enabled and re-created.');
+        } else {
+            // If disabled, clear the alarm
+            chrome.alarms.clear('vfsCheckAlarm');
+            console.log('VFS Appointment Checker: Alarm disabled and cleared.');
+        }
+    }
+});
 
 // Optional: Initial check when the service worker starts up
 chrome.runtime.onInstalled.addListener(() => {
