@@ -36,8 +36,12 @@ vfs_telegram_notifier/
 4. **Configure and Use:**
    - Click the extension icon in Chrome.
    - Enter your login URL, email, and password.
-   - Toggle the "Activate" button and save settings.
+   - Toggle the "Enable Checker" button and click "Save Settings".
+   - You will see a success message:  
+     **Settings saved successfully!**
    - The extension will start automated checking and send notifications to your Telegram.
+
+   ![VFS Notifier Settings Screenshot](./screenshot.png)
 
 ## Icons
 
