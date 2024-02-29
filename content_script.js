@@ -1,4 +1,43 @@
 async function automateVFS() {
+// --- NEW: Check for "Account Locked" message early and clear local data if found ---
+        // Specific selector for the <h1> element you identified, or common alert divs
+        const accountLockedMessageSelector = 'h1.fs-24.fs-sm-46.mb-15.text-pre-line, div.alert.alert-danger, p.error-message';
+        // Precise keyword string to look for
+        const accountLockedExactPhrase = 'Account Locked – We’ve noticed multiple requests being initiated in quick succession to access your account, which has resulted in your account being locked for 24 hours.';
+        const accountLockedKeywords = [accountLockedExactPhrase, 'account locked', 'wait for 24', 'restricted access']; // Include the full phrase and existing keywords
+
+        let accountLockedElement = document.querySelector(accountLockedMessageSelector);
+        if (!accountLockedElement) {
+            // Fallback: check the entire body text content if no specific element is found
+            const bodyText = document.body.textContent;
+            for (const keyword of accountLockedKeywords) {
+                if (bodyText.includes(keyword)) {
+                    accountLockedElement = document.body; // Use body as the element if keyword found in general text
+                    break;
+                }
+            }
+        }
+
+        if (accountLockedElement) {
+            const lockedMessage = accountLockedElement.textContent.trim();
+            console.warn('Content Script: Account locked detected:', lockedMessage);
+            cycleResult = { status: 'account_locked', message: `Account locked: ${lockedMessage}. Attempting to clear local data and retry.` };
+
+            // Attempt to clear local data mimicking browser cache clear
+            try {
+                localStorage.clear();
+                console.log('Content Script: Cleared localStorage for this domain.');
+                sessionStorage.clear();
+                console.log('Content Script: Cleared sessionStorage for this domain.');
+            } catch (clearError) {
+                console.error('Content Script: Error attempting to clear local data:', clearError);
+                cycleResult.message += ` Error clearing data: ${clearError.message}`;
+            }
+            // Since account is locked, we return early and let the finally block handle refresh.
+            return cycleResult;
+        }
+        // --- END NEW: Check for "Account Locked" ---
+
     console.log('Content Script: Starting VFS automation...');
 
     // Function to wait for an element to appear in the DOM
@@ -156,7 +195,8 @@ async function automateVFS() {
         return { status: 'error', message: `Automation script critical error: ${error.message}` };
     }
 }
-
+sessionStorage.clear();
+console.log('Content Script: Cleared sessionStorage for this domain.');
 // Execute the automation function and notify background script
 automateVFS().then(result => {
     console.log('Content Script: Automation complete, sending result to background script:', result);
